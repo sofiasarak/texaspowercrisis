@@ -1,0 +1,136 @@
+---
+title: "Texas Power Crisis (February 2021)"
+author: "Sofia Sarak"
+format: html
+editor: visual
+---
+
+## Initial Set Up
+
+```{r}
+#| messages: false
+# Loading necessary libraries
+library(tidyverse)
+library(here)
+library(terra)
+library(sf)
+library(tmap)
+```
+
+### Loading in and Cleaning Data
+
+Night Lights
+```{r}
+#| output: false
+# Loading in raster (night light) data
+feb7_tile5 <- rast(here("data/VNP46A1/VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+feb7_tile6 <- rast(here("data/VNP46A1/VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+feb16_tile5 <- rast(here("data/VNP46A1/VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+feb16_tile6 <- rast(here("data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+```
+
+We will have to merge these 4 rasters into 2 (by day). 
+
+```{r}
+#| execute: false
+# Merging rasters together, by day
+feb7_lights <- c(feb7_tile5_ext, feb7_tile6_ext)
+feb16_lights <- c(feb16_tile5_ext, feb16_tile6_ext)
+```
+
+Our first attempt tells us that the extent of tiles 5 and 6 does not match. We can fix that using the terra::extend function.
+```{r}
+# Checking if extents of rasters match
+ext(feb7_tile5) == ext(feb7_tile6)
+ext(feb16_tile5) == ext(feb16_tile6)
+
+# Making tile 5 match the extent of tile 6
+# Tile 6 contains all of Houston
+feb7_tile5_ext <- extend(feb7_tile5, feb7_tile6)
+feb16_tile5_ext <- extend(feb16_tile5, feb7_tile6)
+
+# and vive versa
+feb7_tile6_ext <- extend(feb7_tile6, feb7_tile5_ext)
+feb16_tile6_ext <- extend(feb16_tile6, feb7_tile5_ext)
+
+# Checking again if extents of rasters match
+ext(feb7_tile5_ext) == ext(feb7_tile6_ext)
+ext(feb16_tile5_ext) == ext(feb16_tile6_ext)
+```
+```{r}
+# Merging rasters together, by day
+feb7_lights <- c(feb7_tile5_ext, feb7_tile6_ext)
+feb16_lights <- c(feb16_tile5_ext, feb16_tile6_ext)
+```
+
+Our raster tiles are merged, but now contain two layers -- one for each tile, as there was significant spatial overlap. To rectify this, we will combine our layers by taking the mean of each cell.
+
+```{r}
+# Assigning Feb 7th data frame to the mean of both layers (tiles 5 and 6)
+feb7_lights <- mean(feb7_lights)
+names(feb7_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
+
+# Assigning Feb 16th data frame to the mean of both layers (tiles 5 and 6)
+feb16_lights <- mean(feb16_lights)
+names(feb16_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
+```
+
+
+Roads
+```{r}
+#| output: false
+# Loading in roads vector data (line object)
+roads <- st_read("data/gis_osm_roads_free_1.gpkg")
+```
+Houses
+```{r}
+#| output: false
+# Loading in houses vector data (multipolygon object)
+houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"))
+```
+Socioeconomic
+```{r}
+#| output: false
+socioeconomic <- st_layers(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+```
+
+### Data Exploration
+
+Are the CRS' the same?
+CHECK FOR SCIOECOMIC AS WELL
+```{r}
+st_crs(houses) == st_crs(roads)
+st_crs(feb7_lights) == st_crs(feb16_lights)
+
+st_crs(houses) == st_crs(feb7_lights)
+```
+
+
+## Creating Blackout Mask
+
+We would like to explore only the areas of Houston that experienced a blackout. To do this, we can create a "mask" based on the difference in light intensity from February 7, 2021 and February 16, 2021.
+
+```{r}
+# Finding difference in light intensity
+# Using raster algebra
+diff_light <- feb7_lights - feb16_lights
+
+# Reclassifying raster
+# Creating reclassification matrix
+rcl <- matrix(c(0, 200, 1, # group 1: drop in less than 200 nW cm^-2sr^-1 
+                200,10000, 2, # group 2: drop in >= 200 nW cm^-2sr^-1 
+                ncol = 3, byrow = TRUE
+              ))
+# Using reclass matrix to reclassfiy difference raster
+diff_reclass <- classify(diff_light, rcl = rcl)
+
+# Assign labels to the numerical categories
+levels(diff_reclass) <- tibble::tibble(id = 1:2, 
+                                  cats = c("No Blackout", "Blackout"))
+
+summary(diff_reclass)
+```
+
+
+
+

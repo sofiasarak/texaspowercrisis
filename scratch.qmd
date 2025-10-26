@@ -1,0 +1,15 @@
+---
+title: "scratch"
+format: html
+---
+latitudes of tiles 5 and 6
+```{r}
+tm_shape(feb7_tile5) +
+  tm_raster() +
+  tm_grid() +
+tm_shape()
+
+tm_shape(feb7_tile6) +
+  tm_raster() +
+  tm_grid()
+```
