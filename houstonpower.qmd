@@ -80,13 +80,19 @@ Roads
 ```{r}
 #| output: false
 # Loading in roads vector data (line object)
-roads <- st_read("data/gis_osm_roads_free_1.gpkg")
+roads <- st_read("data/gis_osm_roads_free_1.gpkg",
+                 query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'"
+)
 ```
 Houses
 ```{r}
 #| output: false
 # Loading in houses vector data (multipolygon object)
-houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"))
+houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"),
+                 query = "SELECT *
+FROM gis_osm_buildings_a_free_1
+WHERE (type IS NULL AND name IS NULL)
+OR type in ('residential', 'apartments', 'house', 'static_caravan', 'detached')")
 ```
 Socioeconomic
 ```{r}
@@ -132,5 +138,37 @@ summary(diff_reclass)
 ```
 
 
+## Exclude highways from the cropped blackout mask
+Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, we should exclude any locations within 200 meters of all highways in the Houston area.
 
+We can do this by creating a buffer around the roads object, and setting it to 200 meters.
+```{r}
+#| execute: false
+roads_200m <-  st_buffer(roads, dist = units::set_units(200, "m"))
+```
+The code above eventually threw an error: "cannot convert m into rad". This suggests that the units that the roads data frame is in is not linear. Let's check:
+```{r}
+# We can explore the CRS/parameters of the data frame
+# paremeters = TRUE returns a LOT of details about the CRS, so we specify that we just want to know the units
+st_crs(roads, parameters = TRUE)$ud_unit 
+```
+Like we hypothesized...the roads data frame is in degrees!
+
+We can change the CRS of roads by doing the following:
+```{r}
+roads_meters <- st_transform(roads, crs = 32610)
+```
+
+```{r}
+roads_200m <-  st_buffer(roads_meters, dist = units::set_units(200, "m"))
+```
+
+
+```{r}
+# this doesn't really work idk idk
+tm_shape(roads_200m) +
+  tm_polygons() +
+tm_shape(roads) +
+  tm_lines()
+```
 
