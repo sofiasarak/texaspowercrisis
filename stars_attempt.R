@@ -44,3 +44,16 @@ diff_mask_clip <- st_crop(diff_mask, diff_mask_bbox)
 
 nrow(diff_mask)
 
+crop_box <- st_bbox(c(-96.5, 29), c(-96.5, 30.5), c(-94.5, 30.5), c(-94.5, 29))
+crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs = st_crs(diff_mask))
+
+cropped <- st_crop(diff_mask, crop_box)
+
+# to see raster, plot it using plot()
+
+st_as_sf(diff_mask)
+
+
+
+# scratch
+
