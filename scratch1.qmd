@@ -1,0 +1,43 @@
+---
+title: "scratch"
+format: html
+editor: visual
+---
+
+Our first attempt tells us that the extent of tiles 5 and 6 does not match. We can fix that using the terra::extend function.
+```{r}
+# Checking if extents of rasters match
+ext(feb7_tile5) == ext(feb7_tile6)
+ext(feb16_tile5) == ext(feb16_tile6)
+
+# Making tile 5 match the extent of tile 6
+# Tile 6 contains all of Houston
+feb7_tile5_ext <- extend(feb7_tile5, feb7_tile6)
+feb16_tile5_ext <- extend(feb16_tile5, feb7_tile6)
+
+# and vive versa
+feb7_tile6_ext <- extend(feb7_tile6, feb7_tile5_ext)
+feb16_tile6_ext <- extend(feb16_tile6, feb7_tile5_ext)
+
+# Checking again if extents of rasters match
+ext(feb7_tile5_ext) == ext(feb7_tile6_ext)
+ext(feb16_tile5_ext) == ext(feb16_tile6_ext)
+```
+
+```{r}
+# Merging rasters together, by day
+feb7_lights <- merge(feb7_tile5_ext, feb7_tile6_ext)
+feb16_lights <- merge(feb16_tile5_ext, feb16_tile6_ext)
+```
+
+Our raster tiles are merged, but now contain two layers -- one for each tile, as there was significant spatial overlap. To rectify this, we will combine our layers by taking the mean of each cell.
+
+```{r}
+# Assigning Feb 7th data frame to the mean of both layers (tiles 5 and 6)
+feb7_lights <- mean(feb7_lights)
+names(feb7_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
+
+# Assigning Feb 16th data frame to the mean of both layers (tiles 5 and 6)
+feb16_lights <- mean(feb16_lights)
+names(feb16_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
+```

@@ -34,45 +34,8 @@ We will have to merge these 4 rasters into 2 (by day).
 ```{r}
 #| execute: false
 # Merging rasters together, by day
-feb7_lights <- c(feb7_tile5_ext, feb7_tile6_ext)
-feb16_lights <- c(feb16_tile5_ext, feb16_tile6_ext)
-```
-
-Our first attempt tells us that the extent of tiles 5 and 6 does not match. We can fix that using the terra::extend function.
-```{r}
-# Checking if extents of rasters match
-ext(feb7_tile5) == ext(feb7_tile6)
-ext(feb16_tile5) == ext(feb16_tile6)
-
-# Making tile 5 match the extent of tile 6
-# Tile 6 contains all of Houston
-feb7_tile5_ext <- extend(feb7_tile5, feb7_tile6)
-feb16_tile5_ext <- extend(feb16_tile5, feb7_tile6)
-
-# and vive versa
-feb7_tile6_ext <- extend(feb7_tile6, feb7_tile5_ext)
-feb16_tile6_ext <- extend(feb16_tile6, feb7_tile5_ext)
-
-# Checking again if extents of rasters match
-ext(feb7_tile5_ext) == ext(feb7_tile6_ext)
-ext(feb16_tile5_ext) == ext(feb16_tile6_ext)
-```
-```{r}
-# Merging rasters together, by day
-feb7_lights <- c(feb7_tile5_ext, feb7_tile6_ext)
-feb16_lights <- c(feb16_tile5_ext, feb16_tile6_ext)
-```
-
-Our raster tiles are merged, but now contain two layers -- one for each tile, as there was significant spatial overlap. To rectify this, we will combine our layers by taking the mean of each cell.
-
-```{r}
-# Assigning Feb 7th data frame to the mean of both layers (tiles 5 and 6)
-feb7_lights <- mean(feb7_lights)
-names(feb7_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
-
-# Assigning Feb 16th data frame to the mean of both layers (tiles 5 and 6)
-feb16_lights <- mean(feb16_lights)
-names(feb16_lights) <- "Light Intensity (nW cm^-2sr^-1" # changing name from "mean" to be more accurate
+feb7_lights <- merge(feb7_tile5, feb7_tile6)
+feb16_lights <- merge(feb16_tile5, feb16_tile6)
 ```
 
 
@@ -119,23 +82,73 @@ We would like to explore only the areas of Houston that experienced a blackout. 
 ```{r}
 # Finding difference in light intensity
 # Using raster algebra
-diff_light <- feb7_lights - feb16_lights
+diff_light <-  feb7_lights - feb16_lights
 
 # Reclassifying raster
 # Creating reclassification matrix
-rcl <- matrix(c(0, 200, 1, # group 1: drop in less than 200 nW cm^-2sr^-1 
-                200,10000, 2, # group 2: drop in >= 200 nW cm^-2sr^-1 
+rcl <- matrix(c(-Inf, 200, 1,   # group 1: drop in less than 200 nW cm^-2sr^-1 
+                200, Inf,  2),  # group 2: drop in >= 200 nW cm^-2sr^-1 
                 ncol = 3, byrow = TRUE
-              ))
+              )
 # Using reclass matrix to reclassfiy difference raster
 diff_reclass <- classify(diff_light, rcl = rcl)
 
 # Assign labels to the numerical categories
 levels(diff_reclass) <- tibble::tibble(id = 1:2, 
-                                  cats = c("No Blackout", "Blackout"))
+                                       cats = c("No Blackout", "Blackout"))
+
 
 summary(diff_reclass)
 ```
+We can assign all of the areas that experienced a drop of less than 200 nW cm^-2sr^-1 in light intensity (indicator of no blackout) as NA.
+
+```{r}
+diff_mask <- diff_reclass
+diff_mask_vector[diff_mask_vector < 200] <- NA
+```
+
+Vectorizing the mask
+
+```{r}
+diff_mask_vector <- as.polygons(diff_mask)
+st_as_sf(diff_mask_vector)
+```
+Spatial Subsetting
+```{r}
+# find the extent of current raster
+terra::ext(diff_mask)
+
+# create a raster with small extent
+clip <- rast(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5, # extent defined using x and y
+             resolution = 0.3, # each cell will be 0.3 by 0.3 degree
+             vals = 1) # placeholder value that populates each cell, since we are not using actual cell values
+                       # because we are just looking for the shape (clip)
+
+# select the values that fall within smaller extent
+diff_mask_clip <- diff_mask[clip, drop = FALSE]
+
+# verify that output has fewer values than original
+if(ncell(diff_mask) == nrow(diff_mask_clip)){
+  warning("clipping did not remove cells")
+} else {
+  print("clipping removed cells")
+}
+```
+
+Re-projecting the cropped blackout dataset to EPSG:3083
+```{r}
+diff_clip_reproj <- project(diff_mask_clip, "espg:3083")
+```
+
+
+
+
+
+
+
+
+
+
 
 
 ## Exclude highways from the cropped blackout mask
