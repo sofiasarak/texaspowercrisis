@@ -18,9 +18,8 @@ library(tmap)
 library(stars)
 ```
 
-### Loading in and Cleaning Data
+## Create Blackout Mask (night lights data)
 
-Night Lights
 ```{r}
 #| output: false
 # Loading in raster (night light) data
@@ -30,34 +29,110 @@ feb16_tile5 <- read_stars(here("data/VNP46A1/VNP46A1.A2021047.h08v05.001.2021048
 feb16_tile6 <- read_stars(here("data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 ```
 
+Our data comes in two files (tiles) for each day. First, we must merge them by day.
 ```{r}
 # Merging rasters together, by day
 feb7_lights <- st_mosaic(feb7_tile5, feb7_tile6)
 feb16_lights <- st_mosaic(feb16_tile5, feb16_tile6)
 ```
 
+We can find the difference in light intensity between the two days by subtracting them.
 ```{r}
 # Finding difference in light instensity
 diff_light <-  feb7_lights - feb16_lights
 ```
 
+We are only interested in areas where the drop in light intensity is greater than 200. 
 ```{r}
+# Assigning difference in light intensity to new object (to preserve original)
 diff_mask <- diff_light
+
+# All differences values less than 200 set as NA
 diff_mask[diff_mask < 200] <- NA
 ```
 
 ```{r}
+# Vectorizing mask
 vector_diff_mask <- diff_mask %>% 
   st_as_sf() %>% 
   st_make_valid()
 ```
 
+We are only interested in the Houston area, so we will crop our geometries to its area.
 ```{r}
+# Creating a polygon that defines the Houston area based on its coordinates
 crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs = st_crs(diff_mask)) %>% 
   st_as_sfc()
 ```
 
 ```{r}
-diff_cropped <- st_intersects()
+# Cropping our light intensity difference mask using our predefined crop polygon
+diff_cropped <- st_crop(vector_diff_mask, crop_box)
+
+# Ensuring that our cropping worked by checking for difference in cell number
+if(ncell(vector_diff_mask) == nrow(diff_cropped)){
+  warning("clipping did not remove cells")
+} else {
+  print("clipping removed cells")
+}
+```
+
+```{r}
+# Transforming our final light intensity difference to have the NAD83 / Texas Centric Albers Equal Area CRS
+diff_final <- st_transform(diff_cropped, crs = 3083)
+```
+
+## Exclude highways from cropped blackout mask
+
+Highways could have experienced changes to light intensity that are unrelated to the storm, so we will exclude them from our mask.
+
+Importing roads data
+```{r}
+#| output: false
+# Loading in roads vector data (line object)
+# The SQl query allows us to only load highway data (instead of all roads)
+highways <- st_read("data/gis_osm_roads_free_1.gpkg",
+                 query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'"
+) %>% 
+  st_transform(3083)  # preemptively changing CRS to match our other data
+```
+Creating 200 meter buffer around Houston roads.
+```{r}
+# st_buffer with specified units finds all areas within that distance for us
+highways_200m <-  st_buffer(highways, dist = units::set_units(200, "m"))
+```
+
+Combining highway data with its buffer
+```{r}
+highways <- st_simplify(highways, dTolerance = 10)
+highways_200m <- st_simplify(highways_200m, dTolerance = 10)
+
+highways_union <- st_union(highways, highways_200m)
+# Now we have a single object that includes the highways and 200m around them
+```
+
+Now, we find areas that experiences a blackout, but 200m away from highways.
+```{r}
+blackout_no_highway <- st_difference(diff_final, highways_200m)
+```
+
+## Identify the number of homes likely impacted by blackouts
+
+Importing houses data
+```{r}
+#| output: false
+# Loading in houses vector data (multipolygon object)
+houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"),
+                 query = "SELECT *
+FROM gis_osm_buildings_a_free_1
+WHERE (type IS NULL AND name IS NULL)
+OR type in ('residential', 'apartments', 'house', 'static_caravan', 'detached')") %>% 
+  st_transform(3083)  # preemptively changing CRS to match our other data
+```
+
+First, we have to create a layer of homes that are only within our `blackout_no_highway` polygon. This is because we want to see *only* difference in light intensity greater than 200 and unaffected by highway light changes.
+```{r}
+# We use st_contains to find the houses that are fully contained by our blackout polygon
+houses_blackout <- st_contains(blackout_no_highway, houses)
 ```
 
