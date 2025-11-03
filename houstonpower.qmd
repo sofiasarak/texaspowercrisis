@@ -70,7 +70,7 @@ crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs =
 diff_cropped <- st_crop(vector_diff_mask, crop_box)
 
 # Ensuring that our cropping worked by checking for difference in cell number
-if(ncell(vector_diff_mask) == nrow(diff_cropped)){
+if(ncell(vector_diff_mask) == ncell(diff_cropped)){
   warning("clipping did not remove cells")
 } else {
   print("clipping removed cells")
@@ -94,12 +94,14 @@ Importing roads data
 highways <- st_read("data/gis_osm_roads_free_1.gpkg",
                  query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'"
 ) %>% 
-  st_transform(3083)  # preemptively changing CRS to match our other data
+  st_transform(3083) %>%   # preemptively changing CRS to match our other data
+  st_union()
 ```
 Creating 200 meter buffer around Houston roads.
 ```{r}
 # st_buffer with specified units finds all areas within that distance for us
-highways_200m <-  st_buffer(highways, dist = units::set_units(200, "m"))
+highways_200m <-  st_buffer(highways, dist = units::set_units(200, "m")) %>% 
+  st_union()
 ```
 
 Combining highway data with its buffer
@@ -130,9 +132,74 @@ OR type in ('residential', 'apartments', 'house', 'static_caravan', 'detached')"
   st_transform(3083)  # preemptively changing CRS to match our other data
 ```
 
-First, we have to create a layer of homes that are only within our `blackout_no_highway` polygon. This is because we want to see *only* difference in light intensity greater than 200 and unaffected by highway light changes.
+We have to create a layer of homes that are only within our `blackout_no_highway` polygon. This is because we want to see *only* difference in light intensity greater than 200 and unaffected by highway light changes.
 ```{r}
 # We use st_contains to find the houses that are fully contained by our blackout polygon
-houses_blackout <- st_contains(blackout_no_highway, houses)
+houses_blackout_sgbp <- st_contains(blackout_no_highway, houses)
+
+houses_blackout_logical <- lengths(houses_blackout_sgbp) > 0 
+
+houses_blackout <- houses[houses_blackout_logical, ]
+
+# Ensuring that our cropping worked by checking for difference in cell number
+if(ncell(blackout_no_highway) == ncell(houses_blackout)){
+  warning("Failed to extract house data 200m away from highways")
+} else {
+  print("Successfully extracted only houses affected by blackouts (200m away from highways)")
+}
+```
+
+
+## Blackout by Census Tracts
+
+Add description here
+```{r}
+# Checking layers within our socioeconomic data
+st_layers(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+
+# Importing income and geometry layers
+income <- st_read(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X19_INCOME")
+census_tracts <- st_read(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "ACS_2019_5YR_TRACT_48_TEXAS")
+```
+Joining the two data frames into one
+```{r}
+# census_tracts stores geo_ID under a different column names -- fixing it to match income
+census_tracts <- census_tracts %>% 
+  select(-GEOID) %>% 
+  rename(GEOID = GEOID_Data)
+
+# Combining the two layers, and adding geometry column
+income_tracts <- left_join(census_tracts, income, by = "GEOID") %>% 
+  mutate(shape = census_tracts$Shape)
+```
+
+Attempt to create check -- revisit
+```{r}
+#| execute: false
+if(income_tracts$shape == census_tracts$Shape & 
+   income_tracts$GEOID == census_tracts$GEOID){
+  warning("Adding geometry column to combined data frame did not work")
+} else {
+  print("Successfully added shape column to data frame, and made it into an sf object")
+}
+```
+
+Combining house data with income/census tract data
+```{r}
+# Ensuring income_tracts has the same CRS
+income_tracts <- st_transform(income_tracts, crs = st_crs(houses_blackout))
+
+# Joining tract data with houses data
+houses_tracts <- st_join(income_tracts, houses_blackout, join = st_within)
+```
+
+```{r}
+tm_shape(houses_tracts) +
+  tm_polygons()
+```
+
+```{r}
+houses_tracts %>% 
+  group_by("NAMELSAD")
 ```
 
