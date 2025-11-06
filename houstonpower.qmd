@@ -18,7 +18,9 @@ library(tmap)
 library(stars)
 ```
 
-## Create Blackout Mask (night lights data)
+## Data Cleaning
+
+### Create Blackout Mask (night lights data)
 
 ```{r}
 #| output: false
@@ -82,7 +84,7 @@ if(ncell(vector_diff_mask) == ncell(diff_cropped)){
 diff_final <- st_transform(diff_cropped, crs = 3083)
 ```
 
-## Exclude highways from cropped blackout mask
+### Exclude highways from cropped blackout mask
 
 Highways could have experienced changes to light intensity that are unrelated to the storm, so we will exclude them from our mask.
 
@@ -118,7 +120,7 @@ Now, we find areas that experiences a blackout, but 200m away from highways.
 blackout_no_highway <- st_difference(diff_final, highways_200m)
 ```
 
-## Identify the number of homes likely impacted by blackouts
+### Identify the number of homes likely impacted by blackouts
 
 Importing houses data
 ```{r}
@@ -150,12 +152,12 @@ if(ncell(blackout_no_highway) == ncell(houses_blackout)){
 ```
 
 
-## Blackout by Census Tracts
+### Blackout by Census Tracts
 
 Add description here
 ```{r}
 # Checking layers within our socioeconomic data
-st_layers(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+layers <-  st_layers(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
 # Importing income and geometry layers
 income <- st_read(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X19_INCOME")
@@ -170,18 +172,18 @@ census_tracts <- census_tracts %>%
 
 # Combining the two layers, and adding geometry column
 income_tracts <- left_join(census_tracts, income, by = "GEOID") %>% 
-  mutate(shape = census_tracts$Shape)
+  mutate(shape = census_tracts$Shape) 
 ```
 
 Attempt to create check -- revisit
 ```{r}
 #| execute: false
-if(income_tracts$shape == census_tracts$Shape & 
-   income_tracts$GEOID == census_tracts$GEOID){
-  warning("Adding geometry column to combined data frame did not work")
-} else {
-  print("Successfully added shape column to data frame, and made it into an sf object")
-}
+# if(income_tracts$shape == census_tracts$Shape & 
+#   income_tracts$GEOID == census_tracts$GEOID){
+#  warning("Adding geometry column to combined data frame did not work")
+#} else {
+#  print("Successfully added shape column to data frame, and made it into an sf object")
+#}
 ```
 
 Combining house data with income/census tract data
@@ -191,15 +193,155 @@ income_tracts <- st_transform(income_tracts, crs = st_crs(houses_blackout))
 
 # Joining tract data with houses data
 houses_tracts <- st_join(income_tracts, houses_blackout, join = st_within)
+
+houses_tracts <- houses_tracts %>%
+  st_drop_geometry() %>% 
+  mutate(median_income = B19013e1)
 ```
 
 ```{r}
-tm_shape(houses_tracts) +
-  tm_polygons()
+# transforming CRS' to match
+census_tracts <- st_transform(census_tracts, crs = st_crs(houses_blackout))
+
+# filtering census_tracts to only include tracts that contain houses w blackouts
+census_blackout <- st_filter(census_tracts, houses_blackout)
+
+# trying to find the opposite of census blackout DELETE
+census_noblackout_sgbp <- st_disjoint(census_blackout, census_tracts)
+census_noblackout_logical <- lengths(census_noblackout_sgbp) < 0
+census_noblackout <- census_tracts[census_noblackout_logical,]
+
+# Joining tract data to match census data that experienced blackouts DELETE?
+houses_tracts <- st_join(income_tracts, census_blackout, join = st_within)
+
+if(ncell(census_tracts) == ncell(census_blackout)){
+  warning("Filtering did not remove cells")
+} else {
+  print("Filtering successfully removed cells")
+}
+```
+
+
+## Maps, Figures and Reflection
+
+The following section contains the following outputs:
+- a set of maps comparing night light intensities before and after the first two storms
+- a map of the homes in Houston that lost power
+- an estimate of the number of homes in Houston that lost power
+- a map of the census tracts in Houston that lost power
+- a plot comparing the distributions of median household income for census tracts that did and did not experience blackouts
+- a brief reflection (approx. 100 words) summarizing your results and discussing any limitations to this study
+
+### Comparing Light Intensities (Map)
+
+```{r}
+# Cropping both days of our light data to just the Houston area
+# Using previously made crop box
+feb7_cropped <- st_crop(feb7_lights, crop_box)
+feb16_cropped <- st_crop(feb16_lights, crop_box)
+
+# Plotting light intensity for both days
+feb7 <- plot(feb7_cropped,
+     main = "Before Storm (2021-02-07)")
+
+feb16 <- plot(feb16_cropped,
+     main = "After Storm (2021-02-07)")
+```
+
+### Homes in Houston that Lost Power (Map & Esimate)
+
+**Map**
+
+```{r}
+tm_shape(houses_tracts, bbox = houses_blackout) +
+  tm_polygons(fill = "#c6b8cf",
+              alpha = 0.25,
+              border.col = "gray90",
+              lwd = 0.75) +
+tm_title(text = "Houston, TX: Homes that experienced blackout in February 2021") +
+tm_compass() +
+tm_scale_bar() +
+tm_shape(houses_blackout) +
+  tm_symbols(fill = "darkblue",
+             border.col = "darkblue",
+             alpha = 0.5,
+             size = 0.15) 
+```
+
+**Estimate**
+
+Our data frame `houses_blackout` only contains houses in areas that we determined experience a blackout. Therefore, to find the number of homes in Houston that experiences a blackout, we can simply count the number of rows in our data frame.
+```{r}
+houses_estimate <- nrow(houses_blackout)
+
+print(paste("The number of homes that lost power in Houston between February 7th and 16th, 2021, is", houses_estimate, "."))
+```
+
+## Blackout and Census Tract
+```{r}
+tm_shape(census_tracts, bbox = houses_blackout) +
+  tm_polygons(fill = "#c6b8cf",
+              border.col = "gray90",
+              lwd = 0.75) +
+tm_shape(census_blackout) +
+  tm_polygons(fill = "#482161",
+              border.col = "#c6b8cf",
+              lwd = 0.75) +
+tm_add_legend(labels = c("Experienced blackout", "Did not experience blackout"),
+              fill = c("#482161", "#c6b8cf"),
+              title = "Census Blocks",
+              is.portait = TRUE) +
+tm_title("February 2021 Storms: Houston, TX") +
+tm_compass() +
+tm_scale_bar()
+```
+
+a plot comparing the distributions of median household income for census tracts that did and did not experience blackouts
+
+
+```{r}
+# census blocks that experiences blackout
+# census_blackout
+
+# all census blocks with income data
+# income_tracts
+
+# I don't need geometries anymore
+
+income_tracts_df <- income_tracts %>% 
+  st_drop_geometry() %>% 
+  mutate(median_income = B19013e1)
+
+census_blackout_df <- census_blackout %>% 
+  st_drop_geometry()
+
+# joining onto census blackout df will only leave income data for census blocks with blackouts
+blackout_income <- inner_join(income_tracts_df, census_blackout_df, by = "NAMELSAD")
+
+# to keep the opposite observations, we can use anti_join
+noblackout_income <- anti_join(income_tracts_df, blackout_income, by = "NAMELSAD")
+
+blackout_income %>% 
+  summary()
 ```
 
 ```{r}
-houses_tracts %>% 
-  group_by("NAMELSAD")
+# plot of median income distribution of houses experiencing blackout
+plot1 <- blackout_median <- ggplot(blackout_income, aes(y = median_income)) +
+  geom_boxplot() +
+labs(title = "Census Tracts Experiencing Blackout")
+
+plot2 <- noblackout_median <- ggplot(noblackout_income, aes(y = median_income)) +
+  geom_boxplot() +
+labs(title = "Census Tracts No Blackout")
+
+library(patchwork)
+
+plot1 + plot2
 ```
 
+Questions for Office Hours:
+- how do I change color bar/legend as well as color in general for plots showing differences in light intensity
+- ^ also, adding long/lat lines possible?
+- is estimate just number of rows? and is plot of just dots ok? 
+- are my distributions of median income right???
