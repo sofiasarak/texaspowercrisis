@@ -38,7 +38,6 @@ Census tract geometries as well as income data by census tract was sourced from 
 │   └── median_income_plot.png
 ├── houstonpower.pdf
 ├── houstonpower.qmd
-├── median_income_plot.png
 ├── README.md
 └── texaspowercrisis.Rproj
 ```
