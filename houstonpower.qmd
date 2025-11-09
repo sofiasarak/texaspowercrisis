@@ -316,8 +316,8 @@ Plot using `tm_shape()` (which the subsequent maps will also be created with).
 feb7_plot <- tm_shape(feb7_cropped) +
   tm_raster(breaks = c(0, 100, 200, 300, 400, 500, Inf),
             palette = night_light_colors,
-            title = "Light Intensity (nW cm-2sr-1)") +
-  tm_title(text = "February 7, 2021") +
+            title = "Night Light Intensity (nW cm-2sr-1)") +
+  tm_title(text = "Houston, TX: February 7, 2021") +
   tm_graticules(alpha = 0.5)
 
 tmap_save(feb7_plot, "feb7_plot.png")
@@ -325,20 +325,20 @@ tmap_save(feb7_plot, "feb7_plot.png")
 feb16_plot <- tm_shape(feb16_cropped) +
   tm_raster(breaks = c(0, 100, 200, 300, 400, 500, Inf),
             palette = night_light_colors,
-            title = "Light Intensity (nW cm-2sr-1)") +
-  tm_title(text = "February 16, 2021") +
+            title = "Night Light Intensity (nW cm-2sr-1)") +
+  tm_title(text = "Houston, TX: February 16, 2021") +
   tm_graticules(alpha = 0.5)
 
 tmap_save(feb16_plot, "feb16_plot.png")
 
 both_plots <- tmap_arrange(feb7_plot, feb16_plot, nrow = 1)
-tmap_save(both_plots, "both_plots.png")
+tmap_save(both_plots, "figs/both_lights_plots.png")
 
 ```
 
 
 **Difference in Light Intensity** 
-![Night light intensity on both days](figs/both_plots.png){fig-align="center"}
+![Night light intensity on both days](figs/both_lights_plots.png){fig-align="center"}
 
 ### Homes in Houston that Lost Power (Map & Estimate)
 
@@ -369,7 +369,7 @@ tm_shape(houses_blackout) +                                    # Plot houses aff
               title = "Homes that lost power",
               is.portait = TRUE)
 
-tmap_save(houses_plot, "houses_plot.png")
+tmap_save(houses_plot, "figs/houses_plot.png")
 ```
 
 ![](figs/houses_plot.png){fig-align="center"}
@@ -411,7 +411,7 @@ tm_title("February 2021 Storms: Houston, TX") +
 tm_compass() +
 tm_scale_bar()
 
-tmap_save(census_blackout_plot, "census_blackout_plot.png")
+tmap_save(census_blackout_plot, "figs/census_blackout_plot.png")
 ```
 
 
@@ -442,12 +442,12 @@ median_income_plot <- ggplot(data = houses_tracts,
   theme(legend.title = element_blank()) +                        # Remove legend title
   theme_light()
 
-ggsave(filename = "median_income_plot.png", plot = median_income_plot)
+ggsave(filename = "figs/median_income_plot.png", plot = median_income_plot)
 ```
 ![](figs/median_income_plot.png){fig-align="center"}
 
 ### Reflection
 
-Our analysis confirms that the vast majority of Houston experienced a blackout after the storm between February 7th and February 16th. From our visualizations we can see that light intensity decreased between the two days, over 250,000 houses were affected, and few census tracts were spared. Additionally, we see that the census tracts that did not experience a black out had median incomes distributed at slightly higher values than census tracts that did.
+Our analysis confirms that the vast majority of Houston experienced a blackout after the storm between February 7th and February 16th. From our visualizations we can see that light intensity decreased between the two days, over 250,000 houses were affected, and few census tracts were spared. Additionally, we see that the census tracts that did experience a blackout had median incomes distributed at slightly higher values than census tracts that did not.
 
 Limitations of this study include that our designation of "blackout" was determined by light intensity, instead of power outage data, for example. Therefore, there may be patterns to light intensity that we are not controlling for. Additionally, we are comparing data from only two days -- snapshots in time, that may not represent the true impact. For example, there was a winter storm from February 15th to 20th that we may be excluding.
