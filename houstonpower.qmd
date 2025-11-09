@@ -8,6 +8,11 @@ editor: visual
 
 This quarto document contains analyses based in light intensity differences between February 7 and 16, 2021, in Houston, Texas. It compiles remotely-sensed night lights data, geographic features such as roads and buildings, and census income data. This exploration is meant to explore the power crisis that Texas experienced in February 2021 (due to winter storms), and reveal demographic information regarding which homes experienced a blackout.
 
+**Github README**
+
+![Github repository](figs/repo_top.png){fig-align="center"}
+![Github repository](figs/repo_bottom.png){fig-align="center"}
+
 ## Initial Set Up
 
 ```{r}
@@ -333,7 +338,7 @@ tmap_save(both_plots, "both_plots.png")
 
 
 **Difference in Light Intensity** 
-![Night light intensity on both days](both_plots.png){fig-align="center"}
+![Night light intensity on both days](figs/both_plots.png){fig-align="center"}
 
 ### Homes in Houston that Lost Power (Map & Estimate)
 
@@ -367,7 +372,7 @@ tm_shape(houses_blackout) +                                    # Plot houses aff
 tmap_save(houses_plot, "houses_plot.png")
 ```
 
-![](houses_plot.png){fig-align="center"}
+![](figs/houses_plot.png){fig-align="center"}
 
 **Estimate**
 
@@ -376,6 +381,7 @@ Our data frame `houses_blackout` only contains houses in areas that we determine
 ```{r}
 # nrow() to find number of rows in dataframe
 houses_estimate <- nrow(houses_blackout)
+print(houses_estimate)
 ```
 
 The number of homes that lost power in Houston between February 7th and 16th, 2021 is 253,644.
@@ -409,7 +415,7 @@ tmap_save(census_blackout_plot, "census_blackout_plot.png")
 ```
 
 
-![](census_blackout_plot.png){fig-align="center"}
+![](figs/census_blackout_plot.png){fig-align="center"}
 
 
 ### Distribution of Median Income
@@ -438,7 +444,7 @@ median_income_plot <- ggplot(data = houses_tracts,
 
 ggsave(filename = "median_income_plot.png", plot = median_income_plot)
 ```
-![](median_income_plot.png){fig-align="center"}
+![](figs/median_income_plot.png){fig-align="center"}
 
 ### Reflection
 
