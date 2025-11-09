@@ -2,7 +2,7 @@
 
 This repository contains the response to Homework 3 in EDS223 - *Geospatial Analysis & Remote Sensing*, completed by Sofia Sarak.
 
-The assignment explores the effect of the winter storms of February 2021 on Houston, Texas. This is done by using remote sensing data (see data sources below) to see differences in light intensity between before and after one of the winter storms; from this, areas that experienced a blackout were determined. Using geographic roads and houses data, the number of homes that experienced a blackout in Houston was also found. The last bit of the analysis included determining the census tracts that were affected, and the difference between median income between tracts that did and did not experience power outages.
+The assignment explores the effect of the winter storms of February 2021 on Houston, Texas. This is done by using remote sensing data (see data sources below) to see differences in light intensity between February 7th and February 16th; from this, areas that experienced a blackout were determined. Using geographic roads and houses data, the number of homes that experienced a blackout in Houston was also found. The last bit of the analysis included determining the census tracts that were affected, and the difference between median income in tracts that did and did not experience power outages.
 
 For more information on the homework assignment itself (including all of the data and sources), reference the [assignment description](https://eds-223-geospatial.github.io/assignments/HW3.html).
 
@@ -19,7 +19,7 @@ Census tract geometries as well as income data by census tract was sourced from 
 *Information on data sources was retrieved from original assignment description.*
 
 ## Repository Structure
-
+```
 ├── data
 │   ├── ACS_2019_5YR_TRACT_48_TEXAS.gdb
 │   │   ├── ...
@@ -41,7 +41,7 @@ Census tract geometries as well as income data by census tract was sourced from 
 ├── median_income_plot.png
 ├── README.md
 └── texaspowercrisis.Rproj
-
+```
 ## Course Information
 
 -   **Course Title:** [EDS 223 - Geospatial Analysis & Remote Sensing](https://eds-223-geospatial.github.io/)
