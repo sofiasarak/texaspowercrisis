@@ -2,7 +2,7 @@
 title: "Texas Power Crisis (February 2021)"
 author: "Sofia Sark"
 date: "November 8, 2025"
-format: html
+format: pdf
 editor: visual
 ---
 
@@ -75,11 +75,13 @@ We are only interested in the Houston area, so we will crop our geometries to it
 
 ```{r}
 # Creating a polygon that defines the Houston area based on its coordinates
-crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs = st_crs(diff_mask)) %>% 
+crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), 
+                    crs = st_crs(diff_mask)) %>% 
   st_as_sfc()
 ```
 
 ```{r}
+#| warning: false
 # Cropping our light intensity difference mask using our predefined crop polygon
 diff_cropped <- st_crop(vector_diff_mask, crop_box)
 
@@ -158,7 +160,7 @@ houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"),
 We have to create a layer of homes that are only within our `blackout_no_highway` polygon. This is because we only want to see differences in light intensity greater than 200 nW cm-2sr-1 *and* unaffected by highway light changes.
 
 ```{r}
-#st_join(st_countains)
+#st_join(st_contains)
 
 # We use st_contains to find the houses that are fully contained by our blackout polygon
 houses_blackout_sgbp <- st_contains(blackout_no_highway, houses)
@@ -329,9 +331,9 @@ tmap_save(both_plots, "both_plots.png")
 
 ```
 
-::: {#fig-light-intensity-both-days}
-**Difference in Light Intensity** ![Night light intensity on both days](both_plots.png)
-:::
+
+**Difference in Light Intensity** 
+![Night light intensity on both days](both_plots.png){fig-align="center"}
 
 ### Homes in Houston that Lost Power (Map & Estimate)
 
@@ -365,9 +367,7 @@ tm_shape(houses_blackout) +                                    # Plot houses aff
 tmap_save(houses_plot, "houses_plot.png")
 ```
 
-::: {#fig-houses}
-![](houses_plot.png)
-:::
+![](houses_plot.png){fig-align="center"}
 
 **Estimate**
 
@@ -378,7 +378,7 @@ Our data frame `houses_blackout` only contains houses in areas that we determine
 houses_estimate <- nrow(houses_blackout)
 ```
 
-The number of homes that lost power in Houston between February 7th and 16th, 2021 is `houses_estimate`.
+The number of homes that lost power in Houston between February 7th and 16th, 2021 is 253,644.
 
 ### Blackout and Census Tract
 
@@ -408,9 +408,9 @@ tm_scale_bar()
 tmap_save(census_blackout_plot, "census_blackout_plot.png")
 ```
 
-::: {#fig-census-blackout}
-![](census_blackout_plot.png)
-:::
+
+![](census_blackout_plot.png){fig-align="center"}
+
 
 ### Distribution of Median Income
 
@@ -438,13 +438,10 @@ median_income_plot <- ggplot(data = houses_tracts,
 
 ggsave(filename = "median_income_plot.png", plot = median_income_plot)
 ```
-
-::: {#fig-median-income}
-![Median income distribution, by blackout](median_income_plot.png)
-:::
+![](median_income_plot.png){fig-align="center"}
 
 ### Reflection
 
-Our analysis confirms that the vast majority of Houston experienced a blackout after the storm between February 7th and February 16th. From our visualizations we can see that light intensity decreased between the two days, over 200,000 houses were affected, and few census tracts were spared. Additionally, we see that the census tracts that did not experience a black out had median incomes distributed at slightly higher values than census tracts that did.
+Our analysis confirms that the vast majority of Houston experienced a blackout after the storm between February 7th and February 16th. From our visualizations we can see that light intensity decreased between the two days, over 250,000 houses were affected, and few census tracts were spared. Additionally, we see that the census tracts that did not experience a black out had median incomes distributed at slightly higher values than census tracts that did.
 
 Limitations of this study include that our designation of "blackout" was determined by light intensity, instead of power outage data, for example. Therefore, there may be patterns to light intensity that we are not controlling for. Additionally, we are comparing data from only two days -- snapshots in time, that may not represent the true impact. For example, there was a winter storm from February 15th to 20th that we may be excluding.
