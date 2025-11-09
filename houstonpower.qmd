@@ -1,12 +1,12 @@
 ---
 title: "Texas Power Crisis (February 2021)"
 author: "Sofia Sark"
+date: "November 8, 2025"
 format: html
 editor: visual
 ---
 
 This quarto document contains analyses based in light intensity differences between February 7 and 16, 2021, in Houston, Texas. It compiles remotely-sensed night lights data, geographic features such as roads and buildings, and census income data. This exploration is meant to explore the power crisis that Texas experienced in February 2021 (due to winter storms), and reveal demographic information regarding which homes experienced a blackout.
-
 
 ## Initial Set Up
 
@@ -29,6 +29,7 @@ library(stars)
 Our night light intensity data comes from the Visible Infrared Imaging Radiometer Suite (VIIRS) onboard the Suomi satellite, which can be accessed from NASA's Level-1 and Atmospheric Archive & Distribution System Distributed Active Archive Center (LAADS DAAC).
 
 We have four data sets in total: two days, and two tiles from each day. This is because Houston splits two of the tiles.
+
 ```{r}
 #| output: false
 # Loading in raster (night light) data
@@ -39,6 +40,7 @@ feb16_tile6 <- read_stars(here("data/VNP46A1/VNP46A1.A2021047.h08v06.001.2021048
 ```
 
 First, we must merge them by day.
+
 ```{r}
 # Merging rasters together, by day
 feb7_lights <- st_mosaic(feb7_tile5, feb7_tile6)
@@ -46,12 +48,14 @@ feb16_lights <- st_mosaic(feb16_tile5, feb16_tile6)
 ```
 
 We can find the difference in light intensity between the two days by subtracting them.
+
 ```{r}
-# Finding difference in light instensity
+# Finding difference in light intensity
 diff_light <-  feb7_lights - feb16_lights
 ```
 
 We are only interested in areas where the drop in light intensity is greater than 200 nW cm-2sr-1. For the purposes of our analysis, this wil signify a blackout.
+
 ```{r}
 # Assigning difference in light intensity to new object (to preserve original)
 diff_mask <- diff_light
@@ -68,6 +72,7 @@ vector_diff_mask <- diff_mask %>%
 ```
 
 We are only interested in the Houston area, so we will crop our geometries to its area.
+
 ```{r}
 # Creating a polygon that defines the Houston area based on its coordinates
 crop_box <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs = st_crs(diff_mask)) %>% 
@@ -87,6 +92,7 @@ if(ncell(vector_diff_mask) == ncell(diff_cropped)){
 ```
 
 This is our cleaned light intensity difference object! Our final step is to adjust it's CRS.
+
 ```{r}
 # Transforming our final light intensity difference to have the NAD83 / Texas Centric Albers Equal Area CRS
 diff_final <- st_transform(diff_cropped, crs = 3083)
@@ -96,7 +102,7 @@ diff_final <- st_transform(diff_cropped, crs = 3083)
 
 Highways could have experienced changes to light intensity that are unrelated to the storm, so we will exclude them from our mask.
 
-Our roads data is sourced from Geofabrik (a third party company redistributing OpenStreetMap's available geographic world data). The shapefile was retrieved from Geofabrik’s download sites and the class's amazing teaching team prepared a Geopackage (.gpkg file) containing just the subset of roads that intersect the Houston metropolitan area. 
+Our roads data is sourced from Geofabrik (a third party company redistributing OpenStreetMap's available geographic world data). The shapefile was retrieved from Geofabrik’s download sites and the class's amazing teaching team prepared a Geopackage (.gpkg file) containing just the subset of roads that intersect the Houston metropolitan area.
 
 ```{r}
 #| message: false
@@ -112,7 +118,9 @@ highways <- st_read("data/gis_osm_roads_free_1.gpkg",
 # by running st_union, we ensure that all of our roads are clumped into one geometry;
 # this can help avoid long running times in the rest of our analysis
 ```
+
 Creating 200 meter buffer around Houston roads.
+
 ```{r}
 # st_buffer with specified units finds all areas within that distance for us
 highways_200m <-  st_buffer(highways, dist = units::set_units(200, "m")) %>% 
@@ -123,6 +131,7 @@ highways_union <- st_union(highways, highways_200m)
 ```
 
 Now, we find areas that experienced a blackout, but 200m away from highways.
+
 ```{r}
 #| warning: false
 # st_difference() will return all non-intersecting areas
@@ -149,6 +158,8 @@ houses <- st_read(here("data/gis_osm_buildings_a_free_1.gpkg"),
 We have to create a layer of homes that are only within our `blackout_no_highway` polygon. This is because we only want to see differences in light intensity greater than 200 nW cm-2sr-1 *and* unaffected by highway light changes.
 
 ```{r}
+#st_join(st_countains)
+
 # We use st_contains to find the houses that are fully contained by our blackout polygon
 houses_blackout_sgbp <- st_contains(blackout_no_highway, houses)
 
@@ -166,6 +177,7 @@ if(ncell(blackout_no_highway) == ncell(houses_blackout)){
 }
 ```
 
+Note: Because we are using `st_contains()` in this wrangling step, we are only including houses that are fully contained by the blackout polygon (as in, excluding intersecting points).
 
 ### Blackout by Census Tracts
 
@@ -182,13 +194,14 @@ layers <-  st_layers(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 income <- st_read(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "X19_INCOME")
 census_tracts <- st_read(here("data/ACS_2019_5YR_TRACT_48_TEXAS.gdb"), layer = "ACS_2019_5YR_TRACT_48_TEXAS")
 ```
+
 ```{r}
 #| warning: false
 # Cropping our light intensity difference mask using our predefined crop polygon
 
-crop_box <- st_transform(crop_box, crs = 3083)
-census_tracts <- st_transform(census_tracts, crs = st_crs(crop_box))
-census_cropped <- st_crop(census_tracts, crop_box)
+crop_box_census <- st_transform(crop_box, crs = 3083)
+census_tracts <- st_transform(census_tracts, crs = st_crs(crop_box_census))
+census_cropped <- st_crop(census_tracts, crop_box_census)
 
 # Ensuring that our cropping worked by checking for difference in cell number
 if(ncell(census_tracts) == ncell(census_cropped)){
@@ -213,6 +226,7 @@ census_cropped <- census_cropped %>%
 ```
 
 Our final goal for initial census data cleaning and merging is a data frame with census tract geometries and median income information. We do this by joining the two data frames.
+
 ```{r}
 # Combine the two layers
 income_tracts <- left_join(census_cropped, income, by = "GEOID")
@@ -227,7 +241,7 @@ By utilizing a left join, we can ensure that we keep *all* income tracts, and in
 income_tracts <- st_transform(income_tracts, crs = st_crs(houses_blackout))
 
 # Creating a geometry containing only the tracts that have houses with a blackout
-houses_tracts <- st_join(income_tracts, houses_blackout, left = TRUE)
+houses_tracts <- st_join(income_tracts, houses_blackout, left = TRUE) # keep only tracts that have houses blackout, set join = st_disjoint
 ```
 
 We can create a new column called `blackout`, and fill it with TRUE/FALSEs based on whether there was a house that experienced a blackout in that census tract (TRUE = there was). We can base this on the `osm_id` column of our `houses_tracts` data frame, because it contains IDs for the blackout houses. If there is no ID (NA), we assume that there is no blackout house in that census tract.
@@ -244,6 +258,7 @@ houses_tracts$blackout <- houses_tracts$blackout %>%
 Great! Now we have a dataframe containing census tract geometries, their associated median incomes, and information on whether or not any houses in that tract experienced a blackout.
 
 For mapping purposes, we will also create an object that is just the census tracts which contain houses that experienced a blackout.
+
 ```{r}
 # Transform CRS' to match
 census_tracts <- st_transform(census_tracts, crs = st_crs(houses_blackout))
@@ -252,18 +267,22 @@ census_tracts <- st_transform(census_tracts, crs = st_crs(houses_blackout))
 census_blackout <- st_filter(census_tracts, houses_blackout)
 ```
 
-
 ## Maps, Figures and Reflection
 
 The following section contains the following outputs:
-- a set of maps comparing night light intensities before and after the first two storms
-- a map of the homes in Houston that lost power
-- an estimate of the number of homes in Houston that lost power
-- a map of the census tracts in Houston that lost power
-- a plot comparing the distributions of median household income for census tracts that did and did not experience blackouts
-- a brief reflection (approx. 100 words) summarizing your results and discussing any limitations to this study
+
+-   a set of maps comparing night light intensities before and after the first two storms
+-   a map of the homes in Houston that lost power
+-   an estimate of the number of homes in Houston that lost power
+-   a map of the census tracts in Houston that lost power
+-   a plot comparing the distributions of median household income for census tracts that did and did not experience blackouts
+-   a brief reflection (approx. 100 words) summarizing your results and discussing any limitations to this study
 
 ### Comparing Light Intensities (Map)
+
+We can visualize the difference in light intensity by plotting our remote sensing data, by day. We will color by nW cm-2sr-1 to examine differences between February 7th (before storm) and February 16th (after storm).
+
+Before we plot, we first want to prepare our light intensity data by cropping it to just the Houston area. Additionally, we make a color palette for representing light changes.
 
 ```{r}
 # Cropping both days of our light data to just the Houston area
@@ -271,29 +290,30 @@ The following section contains the following outputs:
 feb7_cropped <- st_crop(feb7_lights, crop_box)
 feb16_cropped <- st_crop(feb16_lights, crop_box)
 
-# Plotting light intensity for both days
-feb7 <- plot(feb7_cropped,
-     main = "Before Storm (2021-02-07)")
+# Setting custom color palette; lighter colors represent greater light intensity
+night_light_colors <- c("0" = "#47497a", 
+                        "100" = "#5f61a3",
+                        "200" = "#787acf", 
+                        "300" = "#d2d3f7", 
+                        "400" = "#e4e5f5", 
+                        "500" = "white")
+```
 
-feb16 <- plot(feb16_cropped,
-     main = "After Storm (2021-02-07)")
+Plot using `tm_shape()` (which the subsequent maps will also be created with).
 
-night_light_colors <- c("0" = "#47497a", "100" = "#5f61a3","200" = "#787acf", "300" = "#d2d3f7", "400" = "#e4e5f5", "500" = "white")
+```{r}
+#| messages: false
+#| warning: false
+#| execute: false
 
 feb7_plot <- tm_shape(feb7_cropped) +
   tm_raster(breaks = c(0, 100, 200, 300, 400, 500, Inf),
             palette = night_light_colors,
             title = "Light Intensity (nW cm-2sr-1)") +
   tm_title(text = "February 7, 2021") +
-  tm_graticules(alpha = 0.5) 
+  tm_graticules(alpha = 0.5)
 
-legend_map <-  tm_shape(feb7_cropped) +
-  tm_raster(breaks = c(0, 100, 200, 300, 400, 500, Inf),
-            palette = night_light_colors,
-            title = "Light Intensity (nW cm-2sr-1)") +
-  tm_title(text = "February 7, 2021") +
-  tm_graticules(alpha = 0.5) +
-  tm_layout(legend.only = TRUE) 
+tmap_save(feb7_plot, "feb7_plot.png")
 
 feb16_plot <- tm_shape(feb16_cropped) +
   tm_raster(breaks = c(0, 100, 200, 300, 400, 500, Inf),
@@ -302,16 +322,27 @@ feb16_plot <- tm_shape(feb16_cropped) +
   tm_title(text = "February 16, 2021") +
   tm_graticules(alpha = 0.5)
 
-both_plots <- tmap_arrange(feb7_plot, feb16_plot, legend_map) 
-legend_map
+tmap_save(feb16_plot, "feb16_plot.png")
+
+both_plots <- tmap_arrange(feb7_plot, feb16_plot, nrow = 1)
+tmap_save(both_plots, "both_plots.png")
+
 ```
 
-### Homes in Houston that Lost Power (Map & Esimate)
+::: {#fig-light-intensity-both-days}
+**Difference in Light Intensity** ![Night light intensity on both days](both_plots.png)
+:::
+
+### Homes in Houston that Lost Power (Map & Estimate)
 
 **Map**
 
 ```{r}
-tm_shape(census_tracts, bbox = houses_blackout) +
+#| messages: false
+#| warning: false
+#| execute: false
+
+houses_plot <- tm_shape(census_tracts, bbox = houses_blackout) + # Plot census tracts 
   tm_polygons(fill = "cornflowerblue",
               alpha = 0.5,
               border.col = "gray90",
@@ -319,38 +350,46 @@ tm_shape(census_tracts, bbox = houses_blackout) +
 tm_title(text = "February 2021 Storms: Houston, TX") +
 tm_compass() +
 tm_scale_bar() +
-tm_shape(houses_blackout) +
+tm_shape(houses_blackout) +                                    # Plot houses affected by blackout as points
   tm_symbols(fill = "cornflowerblue",
              border.col = "darkblue",
              alpha = 0.5,
              size = 0.15,
              legend.show = TRUE) +
-  tm_add_legend(type = "symbol",
+  tm_add_legend(type = "symbol",                               # Adding custom legend
               labels = c("Single home"),
               fill = c("darkblue"),
               title = "Homes that lost power",
               is.portait = TRUE)
+
+tmap_save(houses_plot, "houses_plot.png")
 ```
+
+::: {#fig-houses}
+![](houses_plot.png)
+:::
 
 **Estimate**
 
 Our data frame `houses_blackout` only contains houses in areas that we determined experience a blackout. Therefore, to find the number of homes in Houston that experiences a blackout, we can simply count the number of rows in our data frame.
+
 ```{r}
 # nrow() to find number of rows in dataframe
 houses_estimate <- nrow(houses_blackout)
-
-print(paste("The number of homes that lost power in Houston between February 7th and 16th, 2021, is", houses_estimate, "."))
 ```
 
-## Blackout and Census Tract
+The number of homes that lost power in Houston between February 7th and 16th, 2021 is `houses_estimate`.
 
-We have two data frames we can plot to give us this information:
-- `houses_blackout`, which contains geometries of census blocks that contain houses that experienced a blackout.
-- `census_tracts`, which is just the census tracts geometries, that we can underlay to ensure the entire picture of Houston
+### Blackout and Census Tract
+
+We have two data frames we can plot to give us this information: - `houses_blackout`, which contains geometries of census blocks that contain houses that experienced a blackout. - `census_tracts`, which is just the census tracts geometries, that we can underlay to ensure the entire picture of Houston
 
 ```{r}
-# Create plot using tmap
-tm_shape(census_tracts, bbox = census_blackout) +      # Plot all census tracts
+#| messages: false
+#| warning: false
+#| execute: false
+
+census_blackout_plot <- tm_shape(census_tracts, bbox = census_blackout) +      # Plot all census tracts
   tm_polygons(fill = "#c6b8cf",
               border.col = "gray90",
               lwd = 0.75) +
@@ -365,25 +404,47 @@ tm_add_legend(labels = c("Experienced blackout", "Did not experience blackout"),
 tm_title("February 2021 Storms: Houston, TX") +
 tm_compass() +
 tm_scale_bar()
+
+tmap_save(census_blackout_plot, "census_blackout_plot.png")
 ```
 
-## Distribution of Median Income
+::: {#fig-census-blackout}
+![](census_blackout_plot.png)
+:::
+
+### Distribution of Median Income
 
 We can use a density plot and our `houses_tracts` data frame to show the distribution of median income of census tracts, comparing between those that did and did not experience a blackout based on our analysis.
 
 ```{r}
+#| messages: false
+#| warning: false
+#| execute: false
+
 # Create plot using ggplot2
-ggplot(data = houses_tracts, aes(x = blackout, y = median_income)) +
-  geom_boxplot(aes(fill = blackout)) +                                                        # Specifying separate plots by blackout
+median_income_plot <- ggplot(data = houses_tracts, 
+       aes(x = blackout, y = median_income)) +
+  geom_boxplot(aes(fill = blackout)) +                           # Specify separate plots by blackout
   labs(title = "Median Incomes of Census Blocks",
        subtitle = "February 2021 Storms: Houston, TX",
        y = "Median Income") +
-  scale_x_discrete(labels = c("FALSE" = "No Blackout", "TRUE" = "Blackout")) +                # Changing labels to be more intuitive
+  scale_x_discrete(labels =                                      # Change labels to be more intuitive   
+                     c("FALSE" = "No Blackout", "TRUE" = "Blackout")) +      
     theme_light() +
-    scale_fill_manual(values = c("snow", "black"), labels = c("No Blackout", "Blackout")) +   # Customizing legend to fit labels
-  theme(legend.title = element_blank())                                                       # Removing legend title
+    scale_fill_manual(values = c("snow", "black"), 
+                      labels = c("No Blackout", "Blackout")) +   # Customize legend to fit labels
+  theme(legend.title = element_blank()) +                        # Remove legend title
+  theme_light()
+
+ggsave(filename = "median_income_plot.png", plot = median_income_plot)
 ```
 
-## Reflection
+::: {#fig-median-income}
+![Median income distribution, by blackout](median_income_plot.png)
+:::
 
-Summarize results and discuss limitations
+### Reflection
+
+Our analysis confirms that the vast majority of Houston experienced a blackout after the storm between February 7th and February 16th. From our visualizations we can see that light intensity decreased between the two days, over 200,000 houses were affected, and few census tracts were spared. Additionally, we see that the census tracts that did not experience a black out had median incomes distributed at slightly higher values than census tracts that did.
+
+Limitations of this study include that our designation of "blackout" was determined by light intensity, instead of power outage data, for example. Therefore, there may be patterns to light intensity that we are not controlling for. Additionally, we are comparing data from only two days -- snapshots in time, that may not represent the true impact. For example, there was a winter storm from February 15th to 20th that we may be excluding.
